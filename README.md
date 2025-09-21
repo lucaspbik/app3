@@ -18,6 +18,7 @@ Extraktion als Webservice aufrufen lässt.
 
    ```bash
    python -m venv .venv
+ codex/erstelle-eine-app-zur-stucklistenerstellung-vaksnr
    ```
 
    Aktivieren Sie die Umgebung anschließend passend zu Ihrem Betriebssystem:
@@ -39,6 +40,8 @@ Extraktion als Webservice aufrufen lässt.
      ```bat
      .\.venv\Scripts\activate.bat
      ```
+=======
+ main
 
 2. Abhängigkeiten installieren:
 
