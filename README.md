@@ -46,9 +46,13 @@ Metadaten wie die ausgewerteten Seiten enthält.
 uvicorn app.main:app --reload
 ```
 
-Anschließend steht unter `http://127.0.0.1:8000/docs` eine interaktive Dokumentation zur Verfügung. Über den Endpunkt
-`POST /extract` kann eine PDF-Datei hochgeladen werden. Die Antwort enthält die extrahierte Stückliste sowie Metadaten
-zur Verarbeitung.
+Nach dem Start öffnet `http://127.0.0.1:8000/` eine komfortable Weboberfläche. Dort lassen sich PDF-Zeichnungen bequem
+auswählen und mit einem Klick analysieren. Die extrahierten Stücklisten werden tabellarisch dargestellt,
+Metadaten und erkannte Spalten werden übersichtlich aufbereitet.
+
+Die API kann weiterhin direkt genutzt werden: Unter `http://127.0.0.1:8000/docs` steht die automatische FastAPI-
+Dokumentation zur Verfügung, der Endpunkt `POST /extract` akzeptiert PDF-Dateien als Multipart-Uploads und liefert eine
+strukturierte Antwort.
 
 ## Tests
 

@@ -30,3 +30,12 @@ def test_extract_endpoint(tmp_path: Path) -> None:
     assert payload["items"][0]["description"] == "Washer"
     assert payload["items"][0]["quantity"] == 5
     assert payload["metadata"]["source"] == "bom.pdf"
+
+
+def test_web_interface_served() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers.get("content-type", "")
+    assert "Stücklisten-Extractor" in response.text
+    assert "upload-form" in response.text
