@@ -18,27 +18,6 @@ Extraktion als Webservice aufrufen lässt.
 
    ```bash
    python -m venv .venv
-   ```
-
-   Aktivieren Sie die Umgebung anschließend passend zu Ihrem Betriebssystem:
-
-   - **Linux/macOS (bash/zsh):**
-
-     ```bash
-     source .venv/bin/activate
-     ```
-
-   - **Windows PowerShell:**
-
-     ```powershell
-     .\.venv\Scripts\Activate.ps1
-     ```
-
-   - **Windows-Eingabeaufforderung (cmd):**
-
-     ```bat
-     .\.venv\Scripts\activate.bat
-     ```
 
 2. Abhängigkeiten installieren:
 
