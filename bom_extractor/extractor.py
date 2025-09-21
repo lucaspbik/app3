@@ -1,14 +1,11 @@
 """Core logic for extracting bills of materials from PDF engineering drawings."""
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 import io
 import re
-codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple, Union
-=======
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
-main
 
 import pdfplumber
 
@@ -27,14 +24,13 @@ TABLE_SETTINGS: Sequence[Dict[str, Union[str, float]]] = (
     {"vertical_strategy": "lines", "horizontal_strategy": "text"},
 )
 
-codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
 POINT_TO_MM = 25.4 / 72.0
 
 CALLOUT_PATTERN = re.compile(
     r"""
     ^\s*
     (?:[-•\u2022]\s*)?
-    (?:(?P<label>(?:pos(?:ition)?|item|nr|no\.?|#)\s*)?(?P<position>\d{1,3}[A-Za-z]?))
+    (?:(?P<label>(?:pos(?:ition)?|item|nr|no\.?|\#)\s*)?(?P<position>\d{1,3}[A-Za-z]?))
     (?:\s*[\.:)\-])?
     \s+
     (?P<rest>.+)
@@ -70,8 +66,6 @@ SHAPE_LABELS = {
     "circle": "Kreis",
 }
 
-=======
-main
 
 HEADER_ALIASES: Dict[str, Tuple[str, ...]] = {
     "position": (
@@ -153,6 +147,12 @@ HEADER_ALIASES: Dict[str, Tuple[str, ...]] = {
     ),
 }
 
+HEADER_ALIAS_LOOKUP: Dict[str, str] = {}
+for canonical, aliases in HEADER_ALIASES.items():
+    for alias in aliases:
+        normalised_alias = re.sub(r"[^a-z0-9]+", "", alias.lower())
+        HEADER_ALIAS_LOOKUP.setdefault(normalised_alias, canonical)
+
 # Regular expression used to detect numbers (supporting comma as decimal separator)
 QUANTITY_RE = re.compile(
     r"(?P<value>-?\d+(?:[\.,]\d+)?)\s*(?P<unit>[a-zA-Z%\u00b0\/]*)"
@@ -208,6 +208,16 @@ class BOMExtractionResult:
         }
 
 
+@dataclass
+class _TableCandidate:
+    counter: Counter[str]
+    counter_total: int
+    items: List[BOMItem]
+    columns: List[str]
+    score: Tuple[int, int]
+    pages: Set[int]
+
+
 def extract_bom_from_pdf(path: Union[str, io.BytesIO]) -> BOMExtractionResult:
     """Extract a bill of materials from a PDF file located at *path*."""
 
@@ -229,18 +239,64 @@ def _extract_from_pdf_document(pdf: pdfplumber.PDF, source: Optional[str]) -> BO
     detected_columns: List[str] = []
     pages_used: List[int] = []
     tables_seen = 0
+    table_candidates: List[_TableCandidate] = []
 
     for page_index, page in enumerate(pdf.pages, start=1):
         for table in _iter_tables(page):
             tables_seen += 1
+            counter = _table_counter_signature(table)
+            if not counter:
+                continue
             table_items, columns = _process_table(table)
-            if table_items:
-                items.extend(table_items)
-                detected_columns.extend(col for col in columns if col not in detected_columns)
-                pages_used.append(page_index)
+            if not table_items:
+                continue
+            score = (len(columns), len(table_items))
+            counter_total = sum(counter.values())
+            pages: Set[int] = {page_index}
+            skip_candidate = False
+            new_candidates: List[_TableCandidate] = []
+
+            for candidate in table_candidates:
+                if counter >= candidate.counter and (
+                    score > candidate.score
+                    or (score == candidate.score and counter_total > candidate.counter_total)
+                ):
+                    pages.update(candidate.pages)
+                    continue
+
+                if candidate.counter >= counter and (
+                    candidate.score > score
+                    or (candidate.score == score and candidate.counter_total >= counter_total)
+                ):
+                    candidate.pages.add(page_index)
+                    skip_candidate = True
+
+                new_candidates.append(candidate)
+
+            if skip_candidate:
+                table_candidates = new_candidates
+                continue
+
+            new_candidates.append(
+                _TableCandidate(
+                    counter=counter,
+                    counter_total=counter_total,
+                    items=table_items,
+                    columns=columns,
+                    score=score,
+                    pages=pages,
+                )
+            )
+            table_candidates = new_candidates
+
+    for candidate in table_candidates:
+        items.extend(candidate.items)
+        pages_used.extend(candidate.pages)
+        for col in candidate.columns:
+            if col not in detected_columns:
+                detected_columns.append(col)
 
     if not items:
-codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
         fallback_items, fallback_columns, fallback_metadata = _interpret_without_table(pdf)
         metadata: Dict[str, Union[str, List[int], int]] = {
             "source": source or "<unknown>",
@@ -266,26 +322,12 @@ codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
         detected_columns=sorted(set(detected_columns)),
         metadata=metadata,
     )
-=======
-        raise BOMExtractionError(
-            "Keine Stückliste in der PDF gefunden. Bitte stellen Sie sicher, dass die Zeichnung eine tabellarische "
-            "Stückliste mit Spaltenüberschriften enthält."
-        )
-
-    metadata: Dict[str, Union[str, List[int], int]] = {
-        "source": source or "<unknown>",
-        "pages": sorted(set(pages_used)),
-        "tables_checked": tables_seen,
-    }
-
-    return BOMExtractionResult(items=items, detected_columns=detected_columns, metadata=metadata)
-main
 
 
 def _iter_tables(page: pdfplumber.page.Page) -> Iterable[List[List[Optional[str]]]]:
     """Yield tables extracted from a PDF page using different detection strategies."""
 
-    yielded: List[List[List[Optional[str]]]] = []
+    seen_signatures: Set[Tuple[Tuple[Optional[str], ...], ...]] = set()
     for settings in TABLE_SETTINGS:
         try:
             tables = page.extract_tables(table_settings=settings)
@@ -295,15 +337,24 @@ def _iter_tables(page: pdfplumber.page.Page) -> Iterable[List[List[Optional[str]
             continue
         for table in tables:
             # Avoid returning duplicate tables produced by different strategies.
-            if table not in yielded:
-                yielded.append(table)
-                yield table
+            signature = tuple(
+                tuple(row) if isinstance(row, (list, tuple)) else (row,)
+                for row in table
+            )
+            if signature in seen_signatures:
+                continue
+            seen_signatures.add(signature)
+            yield table
 
 
 def _process_table(raw_table: Sequence[Sequence[Optional[str]]]) -> Tuple[List[BOMItem], List[str]]:
     """Attempt to interpret a raw table as a bill of materials."""
 
-    cleaned_table = [_clean_row(row) for row in raw_table if any(_cell_has_content(cell) for cell in row)]
+    cleaned_table: List[List[str]] = []
+    for row in raw_table:
+        cleaned_row = _clean_row(row)
+        if any(cleaned_row):
+            cleaned_table.append(cleaned_row)
     if not cleaned_table:
         return [], []
 
@@ -338,8 +389,18 @@ def _normalise_cell(cell: Optional[str]) -> str:
     return text.strip()
 
 
-def _cell_has_content(cell: Optional[str]) -> bool:
-    return bool(_normalise_cell(cell))
+def _table_counter_signature(
+    raw_table: Sequence[Sequence[Optional[str]]],
+) -> Counter[str]:
+    counter: Counter[str] = Counter()
+    for row in raw_table:
+        if not row:
+            continue
+        for cell in row:
+            value = _normalise_cell(cell)
+            if value:
+                counter[value] += 1
+    return counter
 
 
 def _find_header_row(table: Sequence[Sequence[str]]) -> Tuple[Optional[int], Dict[int, str], Dict[int, str]]:
@@ -382,10 +443,7 @@ def _normalise_header(value: str) -> str:
 
 
 def _match_header(value: str) -> Optional[str]:
-    for canonical, aliases in HEADER_ALIASES.items():
-        if value in aliases:
-            return canonical
-    return None
+    return HEADER_ALIAS_LOOKUP.get(value)
 
 
 def _row_to_item(row: Sequence[str], header_map: Dict[int, str], header_names: Dict[int, str]) -> Optional[BOMItem]:
@@ -458,7 +516,6 @@ def _parse_quantity(value: Optional[str]) -> Tuple[Optional[Union[int, float]], 
 
     unit = match.group("unit") or None
     return numeric_value, unit
-codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
 
 
 def _interpret_without_table(
@@ -911,5 +968,3 @@ def _infer_detected_columns(items: Iterable[BOMItem]) -> List[str]:
             if value is not None and value != "":
                 columns.append(field_name)
     return sorted(dict.fromkeys(columns))
-=======
-main

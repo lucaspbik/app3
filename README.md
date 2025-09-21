@@ -8,11 +8,8 @@ Extraktion als Webservice aufrufen lässt.
 
 - Erkennung gängiger Stücklisten-Tabellen mit deutsch- und englischsprachigen Spaltenüberschriften.
 - Automatische Interpretation wichtiger Spalten wie Position, Artikelnummer, Beschreibung, Menge, Einheit und Material.
-codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
 - Erstellung einer Stückliste selbst dann, wenn keine Tabelle vorhanden ist – Beschriftungen, Callouts und wiederkehrende
   Geometrien werden analysiert und zu plausiblen Einträgen zusammengeführt.
-=======
- main
 - Robuste PDF-Auswertung auf Basis von [pdfplumber](https://github.com/jsvine/pdfplumber).
 - REST-Schnittstelle (FastAPI) zur Integration in bestehende Systeme.
 - Umfangreiche Tests inklusive Erzeugung von Beispiel-PDFs.
@@ -23,10 +20,6 @@ codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
 
    ```bash
    python -m venv .venv
-codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
-=======
- codex/erstelle-eine-app-zur-stucklistenerstellung-vaksnr
- main
    ```
 
    Aktivieren Sie die Umgebung anschließend passend zu Ihrem Betriebssystem:
@@ -48,11 +41,6 @@ codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
      ```bat
      .\.venv\Scripts\activate.bat
      ```
-codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
-=======
-=======
- main
- main
 
 2. Abhängigkeiten installieren:
 
@@ -73,15 +61,12 @@ for item in result.items:
 Die Funktion gibt ein `BOMExtractionResult`-Objekt zurück, welches die erkannten Einträge, die gefundenen Spalten sowie
 Metadaten wie die ausgewerteten Seiten enthält.
 
-codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
 Auch Zeichnungen ohne tabellarische Stückliste werden verarbeitet: Die Bibliothek interpretiert nummerierte Callouts,
 freie Textlisten sowie wiederkehrende geometrische Formen und erstellt daraus eine synthetische Stückliste. Über das
 Metadatenfeld `mode` lässt sich erkennen, ob eine Tabelle (`table`) oder eine interpretierte Liste (`interpreted`)
 zurückgegeben wurde. Weitere Metadaten wie `annotation_items` und `geometry_items` geben an, wie viele Einträge aus
 Text- bzw. Geometrieanalyse stammen.
 
-=======
-main
 ## Start des Webservices
 
 ```bash

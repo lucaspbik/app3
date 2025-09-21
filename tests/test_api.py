@@ -5,11 +5,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.main import app
-codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
 from .utils import build_pdf_table, build_pdf_text
-=======
-from .utils import build_pdf_table
-main
 
 
 client = TestClient(app)
@@ -36,7 +32,6 @@ def test_extract_endpoint(tmp_path: Path) -> None:
     assert payload["metadata"]["source"] == "bom.pdf"
 
 
-codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
 def test_extract_endpoint_interprets_annotations(tmp_path: Path) -> None:
     pdf_path = tmp_path / "callouts.pdf"
     build_pdf_text(
@@ -60,8 +55,6 @@ def test_extract_endpoint_interprets_annotations(tmp_path: Path) -> None:
     assert payload["items"][0]["description"]
 
 
-=======
-main
 def test_web_interface_served() -> None:
     response = client.get("/")
 
