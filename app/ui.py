@@ -204,6 +204,84 @@ WEB_INTERFACE_HTML = """<!DOCTYPE html>
             font-size: 0.95rem;
         }
 
+        .feedback-panel {
+            margin-top: 1.75rem;
+            padding-top: 1.25rem;
+            border-top: 1px solid rgba(148, 163, 184, 0.35);
+        }
+
+        .feedback-panel h3 {
+            margin-top: 0;
+            margin-bottom: 0.75rem;
+        }
+
+        .feedback-panel p {
+            margin-top: 0;
+            margin-bottom: 0.75rem;
+        }
+
+        .feedback-actions {
+            display: inline-flex;
+            gap: 0.5rem;
+        }
+
+        .feedback-button {
+            border: none;
+            border-radius: 999px;
+            padding: 0.45rem 0.75rem;
+            cursor: pointer;
+            font-size: 0.95rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: rgba(99, 102, 241, 0.12);
+            color: #1d4ed8;
+            transition: transform 0.1s ease, background 0.1s ease;
+        }
+
+        .feedback-button:hover {
+            transform: translateY(-1px);
+            background: rgba(99, 102, 241, 0.18);
+        }
+
+        .feedback-button.is-active {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: #ffffff;
+            box-shadow: 0 10px 20px rgba(34, 197, 94, 0.35);
+        }
+
+        .feedback-button.reject.is-active {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            box-shadow: 0 10px 20px rgba(239, 68, 68, 0.35);
+        }
+
+        .feedback-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+            margin-top: 1rem;
+        }
+
+        .feedback-controls button {
+            margin-top: 0.25rem;
+        }
+
+        .feedback-summary {
+            margin-top: 0.75rem;
+            color: #4338ca;
+            font-size: 0.9rem;
+        }
+
+        .feedback-notice {
+            margin-top: 0.75rem;
+        }
+
+        .small-note {
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+
         tbody tr:nth-child(even) {
             background: rgba(99, 102, 241, 0.04);
         }
@@ -260,6 +338,19 @@ WEB_INTERFACE_HTML = """<!DOCTYPE html>
                 color: #94a3b8;
             }
 
+            .feedback-button {
+                background: rgba(59, 130, 246, 0.18);
+                color: #c7d2fe;
+            }
+
+            .feedback-button:hover {
+                background: rgba(59, 130, 246, 0.25);
+            }
+
+            .feedback-summary {
+                color: #a5b4fc;
+            }
+
             footer {
                 color: #64748b;
             }
@@ -306,6 +397,16 @@ WEB_INTERFACE_HTML = """<!DOCTYPE html>
                     <tbody></tbody>
                 </table>
             </div>
+            <div id=\"feedback-panel\" class=\"feedback-panel hidden\">
+                <h3>Bewerten Sie die KI-Ergebnisse</h3>
+                <p>Markieren Sie jede Zeile als <strong>korrekt</strong> oder <strong>überprüfen</strong>. Ihr Feedback verbessert die Interpretation künftiger Zeichnungen.</p>
+                <div id=\"feedback-summary\" class=\"feedback-summary\"></div>
+                <div id=\"feedback-status\" class=\"notice feedback-notice hidden\" role=\"status\" aria-live=\"polite\"></div>
+                <div class=\"feedback-controls\">
+                    <p class=\"small-note\">Bitte bewerten Sie alle angezeigten Einträge. Die Bewertung wird erst aktiviert, wenn jede Zeile markiert wurde.</p>
+                    <button id=\"feedback-submit\" type=\"button\">Feedback senden</button>
+                </div>
+            </div>
         </section>
 
         <footer>
@@ -325,6 +426,10 @@ WEB_INTERFACE_HTML = """<!DOCTYPE html>
             const columnList = document.getElementById('column-list');
             const tableHead = document.querySelector('#items-table thead');
             const tableBody = document.querySelector('#items-table tbody');
+            const feedbackPanel = document.getElementById('feedback-panel');
+            const feedbackSummaryBox = document.getElementById('feedback-summary');
+            const feedbackStatus = document.getElementById('feedback-status');
+            const feedbackButton = document.getElementById('feedback-submit');
 
             const defaultColumns = [
                 { key: 'position', label: 'Position' },
@@ -333,8 +438,14 @@ WEB_INTERFACE_HTML = """<!DOCTYPE html>
                 { key: 'quantity', label: 'Menge' },
                 { key: 'unit', label: 'Einheit' },
                 { key: 'material', label: 'Material' },
-                { key: 'comment', label: 'Kommentar' }
+                { key: 'comment', label: 'Kommentar' },
+                { key: 'confidence', label: 'KI-Vertrauen' }
             ];
+
+            let currentItems = [];
+            let currentMetadata = {};
+            let feedbackSelections = new Map();
+            let sendingFeedback = false;
 
             form.addEventListener('submit', async (event) => {
                 event.preventDefault();
@@ -388,6 +499,9 @@ WEB_INTERFACE_HTML = """<!DOCTYPE html>
                 }
             });
 
+            tableBody.addEventListener('click', handleFeedbackClick);
+            feedbackButton.addEventListener('click', submitFeedback);
+
             function setLoading(isLoading) {
                 submitButton.disabled = isLoading;
                 fileInput.disabled = isLoading;
@@ -405,13 +519,24 @@ WEB_INTERFACE_HTML = """<!DOCTYPE html>
             }
 
             function renderResult(data) {
-                if (!data || !Array.isArray(data.items)) {
+                if (!data || typeof data !== 'object') {
                     throw new Error('Unerwartetes Antwortformat.');
                 }
 
-                renderMetadata(data.metadata || {});
+                const items = Array.isArray(data.items) ? data.items : [];
+                const metadata = data.metadata && typeof data.metadata === 'object' ? data.metadata : {};
+
+                currentItems = items.map((item) => ({
+                    ...item,
+                    extras: item.extras && typeof item.extras === 'object' ? { ...item.extras } : {},
+                }));
+                currentMetadata = { ...metadata };
+                feedbackSelections = new Map();
+
+                renderMetadata(metadata);
                 renderDetectedColumns(data.detected_columns || []);
-                renderTable(data.items || []);
+                renderTable(currentItems);
+                prepareFeedback();
                 resultSection.classList.remove('hidden');
             }
 
@@ -466,6 +591,7 @@ WEB_INTERFACE_HTML = """<!DOCTYPE html>
                     cell.textContent = 'Keine Einträge gefunden.';
                     row.appendChild(cell);
                     tableBody.appendChild(row);
+                    feedbackPanel.classList.add('hidden');
                     return;
                 }
 
@@ -514,6 +640,12 @@ WEB_INTERFACE_HTML = """<!DOCTYPE html>
                     availableColumns.push({ key: 'description', label: 'Beschreibung', fromExtras: false });
                 }
 
+                availableColumns.push({
+                    key: '__feedback__',
+                    label: 'Bewertung',
+                    render: (_item, rowIndex) => createFeedbackCell(rowIndex),
+                });
+
                 const headerRow = document.createElement('tr');
                 availableColumns.forEach((column) => {
                     const th = document.createElement('th');
@@ -523,21 +655,250 @@ WEB_INTERFACE_HTML = """<!DOCTYPE html>
                 });
                 tableHead.appendChild(headerRow);
 
-                items.forEach((item) => {
+                items.forEach((item, rowIndex) => {
                     const row = document.createElement('tr');
+                    row.dataset.index = String(rowIndex);
                     availableColumns.forEach((column) => {
                         const td = document.createElement('td');
-                        let value;
-                        if (column.fromExtras && item.extras && Object.prototype.hasOwnProperty.call(item.extras, column.key)) {
-                            value = item.extras[column.key];
+                        if (typeof column.render === 'function') {
+                            const rendered = column.render(item, rowIndex);
+                            if (rendered instanceof Node) {
+                                td.appendChild(rendered);
+                            } else if (rendered !== undefined && rendered !== null) {
+                                td.textContent = formatValue(rendered);
+                            }
                         } else {
-                            value = item[column.key];
+                            let value;
+                            if (
+                                column.fromExtras &&
+                                item.extras &&
+                                Object.prototype.hasOwnProperty.call(item.extras, column.key)
+                            ) {
+                                value = item.extras[column.key];
+                            } else {
+                                value = item[column.key];
+                            }
+                            if (column.key === 'confidence' && typeof value === 'number') {
+                                td.textContent = `${(value * 100).toFixed(1)} %`;
+                            } else {
+                                td.textContent = formatValue(value);
+                            }
                         }
-                        td.textContent = formatValue(value);
                         row.appendChild(td);
                     });
                     tableBody.appendChild(row);
                 });
+            }
+
+            function prepareFeedback() {
+                if (!currentItems.length) {
+                    feedbackPanel.classList.add('hidden');
+                    feedbackSummaryBox.textContent = '';
+                    clearFeedbackNotice();
+                    updateFeedbackButton();
+                    return;
+                }
+
+                feedbackPanel.classList.remove('hidden');
+                clearFeedbackNotice();
+                updateFeedbackButton();
+                renderFeedbackSummary(null);
+                refreshFeedbackSummary();
+            }
+
+            function updateFeedbackButton() {
+                if (!feedbackButton) {
+                    return;
+                }
+                if (!currentItems.length) {
+                    feedbackButton.disabled = true;
+                    feedbackButton.textContent = 'Feedback senden';
+                    return;
+                }
+
+                const allRated = currentItems.every((_, index) => feedbackSelections.has(index));
+                feedbackButton.disabled = sendingFeedback || !allRated;
+                feedbackButton.textContent = sendingFeedback ? 'Wird gesendet …' : 'Feedback senden';
+            }
+
+            async function refreshFeedbackSummary() {
+                try {
+                    const response = await fetch('/feedback/summary');
+                    if (!response.ok) {
+                        throw new Error('Fehlerhafte Antwort');
+                    }
+                    const summary = await response.json();
+                    renderFeedbackSummary(summary);
+                } catch (error) {
+                    if (!feedbackSummaryBox.textContent) {
+                        feedbackSummaryBox.textContent = 'Noch keine Bewertungen vorhanden – starten Sie mit Ihrem Feedback.';
+                    }
+                }
+            }
+
+            function renderFeedbackSummary(summary) {
+                let data = summary;
+                if (data && typeof data === 'object' && data.summary && typeof data.summary === 'object') {
+                    data = data.summary;
+                }
+
+                if (!data || typeof data !== 'object') {
+                    feedbackSummaryBox.textContent = 'Noch keine Bewertungen vorhanden – starten Sie mit Ihrem Feedback.';
+                    return;
+                }
+
+                const total = Number(data.total_feedback) || 0;
+                const rate = typeof data.success_rate === 'number' ? data.success_rate : 0;
+                const percent = (rate * 100).toFixed(1);
+
+                if (total <= 0) {
+                    feedbackSummaryBox.textContent = 'Noch keine Bewertungen vorhanden – starten Sie mit Ihrem Feedback.';
+                    return;
+                }
+
+                let message = `Bisher ${total} Rückmeldungen · Übereinstimmung ${percent} %.`;
+                if (Array.isArray(data.top_features) && data.top_features.length > 0) {
+                    const highlights = data.top_features
+                        .slice(0, 2)
+                        .map((entry) => (entry && (entry.label || entry.feature)) || '')
+                        .filter(Boolean);
+                    if (highlights.length) {
+                        message += ` Häufig bestätigt: ${highlights.join(', ')}.`;
+                    }
+                }
+                feedbackSummaryBox.textContent = message;
+            }
+
+            function clearFeedbackNotice() {
+                feedbackStatus.textContent = '';
+                feedbackStatus.className = 'notice feedback-notice hidden';
+            }
+
+            function showFeedbackNotice(message, kind) {
+                feedbackStatus.textContent = message;
+                feedbackStatus.className = `notice feedback-notice ${kind}`;
+            }
+
+            function handleFeedbackClick(event) {
+                const target = event.target;
+                if (!(target instanceof HTMLElement)) {
+                    return;
+                }
+                const action = target.dataset.feedbackAction;
+                if (!action) {
+                    return;
+                }
+                const index = Number(target.dataset.index);
+                if (Number.isNaN(index)) {
+                    return;
+                }
+                setRowFeedback(index, action === 'approve');
+            }
+
+            function setRowFeedback(index, correct) {
+                feedbackSelections.set(index, correct);
+                updateRowFeedbackUI(index);
+                clearFeedbackNotice();
+                updateFeedbackButton();
+            }
+
+            function updateRowFeedbackUI(index) {
+                const row = tableBody.querySelector(`tr[data-index="${index}"]`);
+                if (!row) {
+                    return;
+                }
+                const selection = feedbackSelections.get(index);
+                row.querySelectorAll('.feedback-button').forEach((button) => {
+                    const action = button.dataset.feedbackAction;
+                    if (action === 'approve') {
+                        if (selection === true) {
+                            button.classList.add('is-active');
+                        } else {
+                            button.classList.remove('is-active');
+                        }
+                    } else if (action === 'reject') {
+                        button.classList.add('reject');
+                        if (selection === false) {
+                            button.classList.add('is-active');
+                        } else {
+                            button.classList.remove('is-active');
+                        }
+                    }
+                });
+            }
+
+            function createFeedbackCell(rowIndex) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'feedback-actions';
+
+                const approveButton = document.createElement('button');
+                approveButton.type = 'button';
+                approveButton.className = 'feedback-button approve';
+                approveButton.dataset.feedbackAction = 'approve';
+                approveButton.dataset.index = String(rowIndex);
+                approveButton.textContent = '✅ Korrekt';
+                approveButton.title = 'Eintrag als korrekt markieren';
+
+                const rejectButton = document.createElement('button');
+                rejectButton.type = 'button';
+                rejectButton.className = 'feedback-button reject';
+                rejectButton.dataset.feedbackAction = 'reject';
+                rejectButton.dataset.index = String(rowIndex);
+                rejectButton.textContent = '❌ Prüfen';
+                rejectButton.title = 'Eintrag zur Überprüfung markieren';
+
+                wrapper.appendChild(approveButton);
+                wrapper.appendChild(rejectButton);
+                return wrapper;
+            }
+
+            async function submitFeedback() {
+                if (feedbackButton.disabled || sendingFeedback) {
+                    return;
+                }
+
+                const ratings = Array.from(feedbackSelections.entries()).map(([index, correct]) => ({
+                    item: currentItems[index],
+                    correct,
+                }));
+
+                if (ratings.length !== currentItems.length) {
+                    showFeedbackNotice('Bitte bewerten Sie alle Einträge, bevor Sie das Feedback senden.', 'error');
+                    return;
+                }
+
+                sendingFeedback = true;
+                updateFeedbackButton();
+                showFeedbackNotice('Feedback wird übertragen …', 'info');
+
+                const payload = {
+                    document: currentMetadata && currentMetadata.source ? currentMetadata.source : null,
+                    ratings,
+                    metadata: currentMetadata,
+                };
+
+                try {
+                    const response = await fetch('/feedback', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const summary = await response.json().catch(() => null);
+                    if (!response.ok) {
+                        const detail = summary && summary.detail ? summary.detail : 'Feedback konnte nicht gespeichert werden.';
+                        throw new Error(detail);
+                    }
+                    showFeedbackNotice('Vielen Dank für Ihr Feedback!', 'success');
+                    renderFeedbackSummary(summary);
+                    refreshFeedbackSummary();
+                } catch (error) {
+                    showFeedbackNotice(error.message || 'Feedback konnte nicht übermittelt werden.', 'error');
+                } finally {
+                    sendingFeedback = false;
+                    updateFeedbackButton();
+                }
             }
 
             function prettifyLabel(label) {

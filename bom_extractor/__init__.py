@@ -7,6 +7,7 @@ from .extractor import (
     extract_bom_from_bytes,
     extract_bom_from_pdf,
 )
+from .learning import LearningEngine, get_learning_engine
 
 __all__ = [
     "BOMItem",
@@ -14,4 +15,6 @@ __all__ = [
     "BOMExtractionError",
     "extract_bom_from_pdf",
     "extract_bom_from_bytes",
+    "LearningEngine",
+    "get_learning_engine",
 ]

@@ -53,6 +53,7 @@ def build_pdf_drawing(path: Path) -> Path:
         (40, A4[1] - 120, 80, 40),
         (160, A4[1] - 120, 80, 40),
         (40, A4[1] - 200, 80, 40),
+        (320, A4[1] - 160, 200, 20),
         (220, A4[1] - 220, 60, 60),
     ]
     for x, y, width, height in rectangles:
@@ -61,6 +62,7 @@ def build_pdf_drawing(path: Path) -> Path:
     circles = [
         (360, A4[1] - 260, 25),
         (420, A4[1] - 260, 25),
+        (180, A4[1] - 320, 90),
     ]
     for x, y, radius in circles:
         c.circle(x, y, radius, stroke=1, fill=0)

@@ -14,13 +14,52 @@ class BOMItemModel(BaseModel):
     unit: Optional[str] = None
     material: Optional[str] = None
     comment: Optional[str] = None
+    confidence: Optional[float] = None
     extras: Dict[str, str] = Field(default_factory=dict)
 
 
 class BOMResponseModel(BaseModel):
     items: List[BOMItemModel]
     detected_columns: List[str]
-    metadata: Dict[str, Union[int, List[int], str]]
+    metadata: Dict[str, Union[int, float, List[int], str]]
 
 
-__all__ = ["BOMItemModel", "BOMResponseModel"]
+class FeedbackRatingModel(BaseModel):
+    item: BOMItemModel
+    correct: bool
+    note: Optional[str] = None
+
+
+class FeedbackRequestModel(BaseModel):
+    document: Optional[str] = None
+    ratings: List[FeedbackRatingModel]
+    metadata: Optional[Dict[str, Union[int, float, List[int], str]]] = None
+
+
+class FeedbackFeatureModel(BaseModel):
+    feature: str
+    label: str
+    support: int
+    success_rate: float
+
+
+class FeedbackSummaryModel(BaseModel):
+    total_feedback: int
+    success_rate: float
+    top_features: List[FeedbackFeatureModel]
+
+
+class FeedbackResponseModel(BaseModel):
+    status: str
+    summary: FeedbackSummaryModel
+
+
+__all__ = [
+    "BOMItemModel",
+    "BOMResponseModel",
+    "FeedbackRatingModel",
+    "FeedbackRequestModel",
+    "FeedbackFeatureModel",
+    "FeedbackSummaryModel",
+    "FeedbackResponseModel",
+]

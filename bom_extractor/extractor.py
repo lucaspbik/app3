@@ -9,6 +9,8 @@ from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple, Union
 
 import pdfplumber
 
+from .learning import apply_learning_to_result
+
 __all__ = [
     "BOMItem",
     "BOMExtractionResult",
@@ -65,6 +67,70 @@ SHAPE_LABELS = {
     "curve": "Kontur",
     "circle": "Kreis",
 }
+
+COMPONENT_LABELS = {
+    "rohrende": "Rohrende",
+    "rohr": "Rohr",
+    "rohrbogen": "Rohrbogen",
+    "blech": "Blech",
+    "flansch": "Flansch",
+}
+
+_COMPONENT_KEYWORD_GROUPS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+    (
+        "rohrende",
+        (
+            r"rohr\s*ende",
+            r"rohrende",
+            r"endkappe",
+            r"pipe\s*cap",
+            r"end\s*cap",
+        ),
+    ),
+    (
+        "rohrbogen",
+        (
+            r"rohr\s*bog",
+            r"rohrbogen",
+            r"bogen\s*90",
+            r"bogen\s*45",
+            r"bogen",
+            r"elbow",
+            r"bend",
+        ),
+    ),
+    (
+        "flansch",
+        (
+            r"flansch",
+            r"flange",
+        ),
+    ),
+    (
+        "blech",
+        (
+            r"blech",
+            r"platte",
+            r"blechplatte",
+            r"sheet",
+            r"plate",
+        ),
+    ),
+    (
+        "rohr",
+        (
+            r"\brohr\b",
+            r"pipe",
+            r"tube",
+            r"leitung",
+        ),
+    ),
+)
+
+COMPONENT_PATTERNS: Tuple[Tuple[str, Tuple[re.Pattern, ...]], ...] = tuple(
+    (code, tuple(re.compile(pattern, re.IGNORECASE) for pattern in patterns))
+    for code, patterns in _COMPONENT_KEYWORD_GROUPS
+)
 
 
 HEADER_ALIASES: Dict[str, Tuple[str, ...]] = {
@@ -174,6 +240,7 @@ class BOMItem:
     unit: Optional[str] = None
     material: Optional[str] = None
     comment: Optional[str] = None
+    confidence: Optional[float] = None
     extras: Dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Union[str, int, float, Dict[str, str], None]]:
@@ -187,6 +254,7 @@ class BOMItem:
             "unit": self.unit,
             "material": self.material,
             "comment": self.comment,
+            "confidence": self.confidence,
             "extras": {k: v for k, v in self.extras.items() if v},
         }
         return {k: v for k, v in data.items() if v is not None and (v != {} or k == "extras")}
@@ -304,10 +372,12 @@ def _extract_from_pdf_document(pdf: pdfplumber.PDF, source: Optional[str]) -> BO
         }
         metadata.update(fallback_metadata)
         metadata.setdefault("pages", [])
-        return BOMExtractionResult(
-            items=fallback_items,
-            detected_columns=fallback_columns,
-            metadata=metadata,
+        return apply_learning_to_result(
+            BOMExtractionResult(
+                items=fallback_items,
+                detected_columns=fallback_columns,
+                metadata=metadata,
+            )
         )
 
     metadata = {
@@ -317,10 +387,12 @@ def _extract_from_pdf_document(pdf: pdfplumber.PDF, source: Optional[str]) -> BO
         "mode": "table",
     }
 
-    return BOMExtractionResult(
-        items=items,
-        detected_columns=sorted(set(detected_columns)),
-        metadata=metadata,
+    return apply_learning_to_result(
+        BOMExtractionResult(
+            items=items,
+            detected_columns=sorted(set(detected_columns)),
+            metadata=metadata,
+        )
     )
 
 
@@ -446,6 +518,54 @@ def _match_header(value: str) -> Optional[str]:
     return HEADER_ALIAS_LOOKUP.get(value)
 
 
+def _detect_component_from_text(*texts: Optional[str]) -> Optional[str]:
+    """Return the canonical component code if any of *texts* matches known keywords."""
+
+    for text in texts:
+        if not text:
+            continue
+        lowered = text.lower()
+        for code, patterns in COMPONENT_PATTERNS:
+            for pattern in patterns:
+                if pattern.search(lowered):
+                    return code
+    return None
+
+
+def _annotate_item_component(
+    item: BOMItem,
+    *,
+    preset: Optional[str] = None,
+    source: Optional[str] = None,
+) -> BOMItem:
+    """Augment *item* with component metadata derived from text or heuristics."""
+
+    component = preset or _detect_component_from_text(
+        item.description,
+        item.part_number,
+        item.comment,
+        " ".join(str(value) for value in item.extras.values()) if item.extras else None,
+    )
+    if not component:
+        return item
+
+    label = COMPONENT_LABELS.get(component, component.title())
+    item.extras["component_type"] = label
+    item.extras.setdefault("component_code", component)
+
+    if source:
+        item.extras.setdefault("component_source", source)
+    elif preset:
+        item.extras.setdefault("component_source", "heuristik")
+    else:
+        item.extras.setdefault("component_source", "text")
+
+    if not item.description:
+        item.description = label
+
+    return item
+
+
 def _row_to_item(row: Sequence[str], header_map: Dict[int, str], header_names: Dict[int, str]) -> Optional[BOMItem]:
     recognised: Dict[str, str] = {}
     extras: Dict[str, str] = {}
@@ -488,11 +608,13 @@ def _row_to_item(row: Sequence[str], header_map: Dict[int, str], header_names: D
         if key not in {"position", "part_number", "description", "quantity", "unit", "material", "comment"}:
             item.extras[key] = value
 
+    item.extras.setdefault("source", "table")
+
     # If we failed to parse a numeric quantity keep the raw text inside extras.
     if "quantity" in recognised and quantity_value is None:
         item.extras.setdefault("quantity_raw", recognised["quantity"])
 
-    return item
+    return _annotate_item_component(item)
 
 
 def _parse_quantity(value: Optional[str]) -> Tuple[Optional[Union[int, float]], Optional[str]]:
@@ -625,6 +747,7 @@ def _interpret_textual_annotations(
                 comment=parsed.get("comment"),
                 extras={key: str(value) for key, value in extras.items() if value},
             )
+            item = _annotate_item_component(item)
             items.append(item)
             pages_with_items.add(page_index)
 
@@ -844,7 +967,7 @@ def _interpret_geometry_components(
 ) -> Tuple[List[BOMItem], Set[str], int, Dict[str, Union[List[int], int]]]:
     """Cluster geometric primitives into pseudo BOM entries."""
 
-    shapes: Dict[Tuple[str, float, float], Dict[str, object]] = {}
+    shapes: Dict[Tuple[str, float, float, Optional[str]], Dict[str, object]] = {}
     pages_with_shapes: Set[int] = set()
     shapes_considered = 0
     next_position = max(start_position, 1)
@@ -870,7 +993,8 @@ def _interpret_geometry_components(
                     continue
 
             major, minor = _shape_dimension_key(width, height)
-            key = ("rectangle", major, minor)
+            component, _ = _classify_shape_component("rectangle", major, minor)
+            key = ("rectangle", major, minor, component)
             bucket = shapes.setdefault(key, {"count": 0, "pages": set()})
             bucket["count"] += 1
             bucket["pages"].add(page_index)
@@ -878,7 +1002,7 @@ def _interpret_geometry_components(
             shapes_considered += 1
 
         for curve in getattr(page, "curves", []):
-            points = curve.get("points") or []
+            points = curve.get("points") or curve.get("pts") or []
             coords: List[Tuple[float, float]] = []
             for point in points:
                 if isinstance(point, (tuple, list)) and len(point) >= 2:
@@ -900,7 +1024,8 @@ def _interpret_geometry_components(
 
             shape_type = "circle" if abs(width - height) <= 5 else "curve"
             major, minor = _shape_dimension_key(width, height)
-            key = (shape_type, major, minor)
+            component, _ = _classify_shape_component(shape_type, major, minor)
+            key = (shape_type, major, minor, component)
             bucket = shapes.setdefault(key, {"count": 0, "pages": set()})
             bucket["count"] += 1
             bucket["pages"].add(page_index)
@@ -908,16 +1033,24 @@ def _interpret_geometry_components(
             shapes_considered += 1
 
     items: List[BOMItem] = []
-    for shape_key in sorted(shapes.keys()):
-        shape_type, major, minor = shape_key
+    for shape_key in sorted(
+        shapes.keys(), key=lambda key: (key[0], key[1], key[2], key[3] or "")
+    ):
+        shape_type, major, minor, component = shape_key
         data = shapes[shape_key]
         position, next_position = _allocate_position(used_positions, next_position)
-        description = _format_shape_description(shape_type, major, minor)
+        component_description = None
+        if component:
+            _, component_description = _classify_shape_component(shape_type, major, minor)
+        description = component_description or _format_shape_description(shape_type, major, minor)
         extras = {
             "source": "geometry",
             "shape": SHAPE_LABELS.get(shape_type, shape_type),
             "pages": ",".join(str(page) for page in sorted(data["pages"])),
         }
+        if component:
+            extras["component_type"] = COMPONENT_LABELS.get(component, component.title())
+            extras.setdefault("component_source", "geometry")
         item = BOMItem(
             position=position,
             description=description,
@@ -925,6 +1058,7 @@ def _interpret_geometry_components(
             unit="pcs",
             extras=extras,
         )
+        item = _annotate_item_component(item, preset=component, source="geometry")
         items.append(item)
 
     metadata: Dict[str, Union[List[int], int]] = {
@@ -949,6 +1083,39 @@ def _format_shape_description(shape_type: str, major: float, minor: float) -> st
     if shape_type == "circle" or abs(major - minor) <= 0.2:
         return f"{label} Ø {major:.1f} mm"
     return f"{label} {major:.1f} × {minor:.1f} mm"
+
+
+def _classify_shape_component(
+    shape_type: str, major: float, minor: float
+) -> Tuple[Optional[str], Optional[str]]:
+    """Heuristically assign a component type and description to a shape."""
+
+    minor_safe = minor if minor > 0 else 1.0
+    aspect_ratio = major / minor_safe if minor_safe else 0.0
+    component: Optional[str] = None
+    description: Optional[str] = None
+
+    if shape_type == "rectangle":
+        if aspect_ratio >= 6 and minor <= 200:
+            component = "rohr"
+            description = f"{COMPONENT_LABELS[component]} {major:.1f} × {minor:.1f} mm"
+        elif aspect_ratio >= 2 or minor <= 12:
+            component = "blech"
+            description = f"{COMPONENT_LABELS[component]} {major:.1f} × {minor:.1f} mm"
+        elif major <= 150 and minor <= 150:
+            component = "blech"
+            description = f"{COMPONENT_LABELS[component]} {major:.1f} × {minor:.1f} mm"
+    elif shape_type == "curve":
+        component = "rohrbogen"
+        description = f"{COMPONENT_LABELS[component]} {major:.1f} × {minor:.1f} mm"
+    elif shape_type == "circle":
+        if major <= 60:
+            component = "rohrende"
+        else:
+            component = "flansch"
+        description = f"{COMPONENT_LABELS[component]} Ø {major:.1f} mm"
+
+    return component, description
 
 
 def _allocate_position(used_positions: Set[str], start_index: int) -> Tuple[str, int]:

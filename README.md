@@ -10,6 +10,11 @@ Extraktion als Webservice aufrufen lässt.
 - Automatische Interpretation wichtiger Spalten wie Position, Artikelnummer, Beschreibung, Menge, Einheit und Material.
 - Erstellung einer Stückliste selbst dann, wenn keine Tabelle vorhanden ist – Beschriftungen, Callouts und wiederkehrende
   Geometrien werden analysiert und zu plausiblen Einträgen zusammengeführt.
+- Spezielle Kennzeichnung typischer Rohrleitungsbauteile wie Rohrenden, Rohre, Rohrbögen, Bleche und Flansche – sowohl in
+  Tabellen als auch in interpretierten Texten und Geometrien.
+- Selbstlernende Vertrauensbewertung: Die Weboberfläche bietet einen Bewertungsbereich, über den Anwender jede Position als
+  korrekt oder überprüfungsbedürftig markieren können. Das System speichert das Feedback, passt seine Gewichtungen an und
+  zeigt nachvollziehbare Erfolgsstatistiken an.
 - Robuste PDF-Auswertung auf Basis von [pdfplumber](https://github.com/jsvine/pdfplumber).
 - REST-Schnittstelle (FastAPI) zur Integration in bestehende Systeme.
 - Umfangreiche Tests inklusive Erzeugung von Beispiel-PDFs.
@@ -75,7 +80,9 @@ uvicorn app.main:app --reload
 
 Nach dem Start öffnet `http://127.0.0.1:8000/` eine komfortable Weboberfläche. Dort lassen sich PDF-Zeichnungen bequem
 auswählen und mit einem Klick analysieren. Die extrahierten Stücklisten werden tabellarisch dargestellt,
-Metadaten und erkannte Spalten werden übersichtlich aufbereitet.
+Metadaten und erkannte Spalten werden übersichtlich aufbereitet. Zusätzlich steht ein Bewertungsbereich zur Verfügung,
+in dem Sie jede Zeile als korrekt oder zu prüfen markieren können. Das adaptive Lernmodell passt die
+Vertrauenswerte in Echtzeit an und präsentiert eine kurze Statistik über die bislang eingegangenen Rückmeldungen.
 
 Die API kann weiterhin direkt genutzt werden: Unter `http://127.0.0.1:8000/docs` steht die automatische FastAPI-
 Dokumentation zur Verfügung, der Endpunkt `POST /extract` akzeptiert PDF-Dateien als Multipart-Uploads und liefert eine
