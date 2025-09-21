@@ -4,7 +4,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import io
 import re
+codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple, Union
+=======
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
+main
 
 import pdfplumber
 
@@ -23,6 +27,7 @@ TABLE_SETTINGS: Sequence[Dict[str, Union[str, float]]] = (
     {"vertical_strategy": "lines", "horizontal_strategy": "text"},
 )
 
+codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
 POINT_TO_MM = 25.4 / 72.0
 
 CALLOUT_PATTERN = re.compile(
@@ -65,6 +70,8 @@ SHAPE_LABELS = {
     "circle": "Kreis",
 }
 
+=======
+main
 
 HEADER_ALIASES: Dict[str, Tuple[str, ...]] = {
     "position": (
@@ -233,6 +240,7 @@ def _extract_from_pdf_document(pdf: pdfplumber.PDF, source: Optional[str]) -> BO
                 pages_used.append(page_index)
 
     if not items:
+codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
         fallback_items, fallback_columns, fallback_metadata = _interpret_without_table(pdf)
         metadata: Dict[str, Union[str, List[int], int]] = {
             "source": source or "<unknown>",
@@ -258,6 +266,20 @@ def _extract_from_pdf_document(pdf: pdfplumber.PDF, source: Optional[str]) -> BO
         detected_columns=sorted(set(detected_columns)),
         metadata=metadata,
     )
+=======
+        raise BOMExtractionError(
+            "Keine Stückliste in der PDF gefunden. Bitte stellen Sie sicher, dass die Zeichnung eine tabellarische "
+            "Stückliste mit Spaltenüberschriften enthält."
+        )
+
+    metadata: Dict[str, Union[str, List[int], int]] = {
+        "source": source or "<unknown>",
+        "pages": sorted(set(pages_used)),
+        "tables_checked": tables_seen,
+    }
+
+    return BOMExtractionResult(items=items, detected_columns=detected_columns, metadata=metadata)
+main
 
 
 def _iter_tables(page: pdfplumber.page.Page) -> Iterable[List[List[Optional[str]]]]:
@@ -436,6 +458,7 @@ def _parse_quantity(value: Optional[str]) -> Tuple[Optional[Union[int, float]], 
 
     unit = match.group("unit") or None
     return numeric_value, unit
+codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
 
 
 def _interpret_without_table(
@@ -888,3 +911,5 @@ def _infer_detected_columns(items: Iterable[BOMItem]) -> List[str]:
             if value is not None and value != "":
                 columns.append(field_name)
     return sorted(dict.fromkeys(columns))
+=======
+main

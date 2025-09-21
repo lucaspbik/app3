@@ -2,8 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
 from bom_extractor import extract_bom_from_pdf
 from .utils import build_pdf_drawing, build_pdf_table, build_pdf_text
+=======
+import pytest
+
+from bom_extractor import BOMExtractionError, extract_bom_from_pdf
+from .utils import build_pdf_table, build_pdf_text
+main
 
 
 def test_extract_basic_table(tmp_path: Path) -> None:
@@ -44,6 +51,7 @@ def test_extract_german_headers(tmp_path: Path) -> None:
     assert first.unit == "Stk"
 
 
+codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
 def test_extract_interprets_text_annotations(tmp_path: Path) -> None:
     pdf_path = tmp_path / "text.pdf"
     build_pdf_text(
@@ -78,3 +86,11 @@ def test_extract_interprets_geometry(tmp_path: Path) -> None:
     assert result.metadata["annotation_items"] == 0
     assert any("Rechteck" in (item.description or "") for item in result.items)
     assert all(item.quantity and item.quantity >= 1 for item in result.items)
+=======
+def test_extract_raises_when_no_table(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "text.pdf"
+    build_pdf_text(pdf_path, ["Dies ist nur eine Beschreibung ohne Tabelle."])
+
+    with pytest.raises(BOMExtractionError):
+        extract_bom_from_pdf(str(pdf_path))
+main

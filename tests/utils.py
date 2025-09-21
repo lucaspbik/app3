@@ -41,6 +41,7 @@ def build_pdf_text(path: Path, lines: Iterable[str]) -> Path:
     c.showPage()
     c.save()
     return path
+codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
 
 
 def build_pdf_drawing(path: Path) -> Path:
@@ -68,3 +69,5 @@ def build_pdf_drawing(path: Path) -> Path:
     c.showPage()
     c.save()
     return path
+=======
+main
