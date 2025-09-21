@@ -5,14 +5,8 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
-from bom_extractor import BOMExtractionError, BOMItem, extract_bom_from_bytes
-from bom_extractor.learning import get_learning_engine
-from .schemas import (
-    BOMResponseModel,
-    FeedbackRequestModel,
-    FeedbackResponseModel,
-    FeedbackSummaryModel,
-)
+from bom_extractor import BOMExtractionError, extract_bom_from_bytes
+from .schemas import BOMResponseModel
 from .ui import WEB_INTERFACE_HTML
 
 app = FastAPI(
@@ -23,8 +17,6 @@ app = FastAPI(
     ),
     version="1.0.0",
 )
-
-learning_engine = get_learning_engine()
 
 app.add_middleware(
     CORSMiddleware,
@@ -71,34 +63,6 @@ async def extract_bom(file: UploadFile = File(...)) -> BOMResponseModel:
         raise HTTPException(status_code=500, detail="Fehler beim Lesen der PDF-Datei.") from exc
 
     return BOMResponseModel(**result.to_dict())
-
-
-@app.post("/feedback", response_model=FeedbackResponseModel)
-def submit_feedback(payload: FeedbackRequestModel) -> FeedbackResponseModel:
-    """Receive user feedback about extracted BOM entries and update the learner."""
-
-    if not payload.ratings:
-        raise HTTPException(status_code=400, detail="Keine Bewertungen übermittelt.")
-
-    ratings = []
-    for entry in payload.ratings:
-        item = BOMItem(**entry.item.dict())
-        ratings.append((item, entry.correct))
-
-    metadata = dict(payload.metadata or {})
-    if payload.document and "document" not in metadata:
-        metadata["document"] = payload.document
-
-    summary = learning_engine.record_feedback(ratings, metadata=metadata)
-    return FeedbackResponseModel(status="ok", summary=summary)
-
-
-@app.get("/feedback/summary", response_model=FeedbackSummaryModel)
-def get_feedback_summary() -> FeedbackSummaryModel:
-    """Return the aggregated learning summary."""
-
-    summary = learning_engine.summary()
-    return FeedbackSummaryModel(**summary)
 
 
 __all__ = ["app"]

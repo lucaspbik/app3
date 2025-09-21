@@ -1,0 +1,71 @@
+{
+  "feature_stats": {
+    "source::text": {
+      "positive": 3.0,
+      "negative": 69.0
+    },
+    "mode::interpreted": {
+      "positive": 3.0,
+      "negative": 127.0
+    },
+    "heuristic::mittel": {
+      "positive": 3.0,
+      "negative": 39.0
+    },
+    "fields::4": {
+      "positive": 2.0,
+      "negative": 74.0
+    },
+    "has_quantity": {
+      "positive": 3.0,
+      "negative": 87.0
+    },
+    "has_part_number": {
+      "positive": 2.0,
+      "negative": 26.0
+    },
+    "heuristic::niedrig": {
+      "positive": 0.0,
+      "negative": 20.0
+    },
+    "fields::2": {
+      "positive": 0.0,
+      "negative": 20.0
+    },
+    "heuristic::hoch": {
+      "positive": 0.0,
+      "negative": 10.0
+    },
+    "component::flansch": {
+      "positive": 0.0,
+      "negative": 2.0
+    },
+    "fields::5+": {
+      "positive": 0.0,
+      "negative": 6.0
+    },
+    "component::rohrende": {
+      "positive": 0.0,
+      "negative": 26.0
+    },
+    "fields::3": {
+      "positive": 1.0,
+      "negative": 27.0
+    },
+    "component::rohr": {
+      "positive": 0.0,
+      "negative": 2.0
+    },
+    "source::geometry": {
+      "positive": 0.0,
+      "negative": 58.0
+    },
+    "component::rohrbogen": {
+      "positive": 0.0,
+      "negative": 34.0
+    }
+  },
+  "total_positive": 3.0,
+  "total_negative": 127.0,
+  "version": 1
+}
