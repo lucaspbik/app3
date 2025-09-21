@@ -123,6 +123,7 @@ def test_component_keywords_in_text(tmp_path: Path) -> None:
             "3 Flansch PN16 qty 4",
             "4 Blech 8mm qty 1",
             "5 Rohrende Endkappe qty 2",
+            "6 Stahlrohr DN50 qty 1",
         ],
     )
 
@@ -134,6 +135,16 @@ def test_component_keywords_in_text(tmp_path: Path) -> None:
     assert {"Rohr", "Rohrbogen", "Blech", "Flansch", "Rohrende"} <= components
     classified_items = [item for item in result.items if item.extras.get("component_type")]
     assert all(item.extras.get("component_source") == "text" for item in classified_items)
+
+    dn_item = next(item for item in result.items if item.description and "DN80" in item.description)
+    assert dn_item.extras.get("component_type") == "Rohr"
+    assert dn_item.part_number is None
+
+    stahl_item = next(
+        item for item in result.items if item.description and "Stahlrohr" in item.description
+    )
+    assert stahl_item.extras.get("component_type") == "Rohr"
+    assert stahl_item.part_number is None
 
 
 def test_learning_feedback_updates_confidence(tmp_path: Path) -> None:

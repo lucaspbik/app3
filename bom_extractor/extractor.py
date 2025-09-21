@@ -82,7 +82,9 @@ _COMPONENT_KEYWORD_GROUPS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
         (
             r"rohr\s*ende",
             r"rohrende",
+            r"end\s*deckel",
             r"endkappe",
+            r"\bkappe\b",
             r"pipe\s*cap",
             r"end\s*cap",
         ),
@@ -94,6 +96,9 @@ _COMPONENT_KEYWORD_GROUPS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
             r"rohrbogen",
             r"bogen\s*90",
             r"bogen\s*45",
+            r"bogen\s*180",
+            r"bogen\s*r\s*\d+",
+            r"bogen\s*radius",
             r"bogen",
             r"elbow",
             r"bend",
@@ -103,7 +108,12 @@ _COMPONENT_KEYWORD_GROUPS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
         "flansch",
         (
             r"flansch",
+            r"blindflansch",
+            r"losflansch",
+            r"schweißflansch",
             r"flange",
+            r"lap\s*joint\s*flange",
+            r"weld\s*neck\s*flange",
         ),
     ),
     (
@@ -120,9 +130,11 @@ _COMPONENT_KEYWORD_GROUPS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
         "rohr",
         (
             r"\brohr\b",
+            r"rohr",
             r"pipe",
             r"tube",
             r"leitung",
+            r"stutzen",
         ),
     ),
 )
@@ -223,6 +235,23 @@ for canonical, aliases in HEADER_ALIASES.items():
 QUANTITY_RE = re.compile(
     r"(?P<value>-?\d+(?:[\.,]\d+)?)\s*(?P<unit>[a-zA-Z%\u00b0\/]*)"
 )
+
+
+DIMENSION_TOKEN_RE = re.compile(
+    r"""
+    ^
+    (?:
+        (?:dn|pn|od|id|d|r|m|ø|phi)
+        [-/]?\d+(?:[\.,]\d+)?(?:x\d+(?:[\.,]\d+)?){0,2}(?:mm|cm|m|grad|°)?
+        |
+        \d+(?:[\.,]\d+)?(?:x\d+(?:[\.,]\d+)?){1,2}(?:mm|cm|m|grad|°)?
+    )
+    $
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+COMPOSITE_DIMENSION_RE = re.compile(r"^(?:dn\d+pn\d+|pn\d+dn\d+)$", re.IGNORECASE)
 
 
 class BOMExtractionError(RuntimeError):
@@ -920,12 +949,23 @@ def _extract_part_number_and_description(text: str) -> Tuple[Optional[str], str]
     description = " ".join(description_tokens).strip(" -:;,")
     description = re.sub(r"\s{2,}", " ", description)
 
+    if part_number and _looks_like_dimension(part_number):
+        description = " ".join(filter(None, [description, part_number])).strip()
+        part_number = None
+    elif part_number and (not description or not _description_has_letters(description)):
+        merged = " ".join(filter(None, [description, part_number]))
+        description = merged.strip()
+        part_number = None
+
     return part_number, description
 
 
 def _looks_like_part_number(token: str) -> bool:
     candidate = token.strip()
     if not candidate or len(candidate) < 2:
+        return False
+
+    if _looks_like_dimension(candidate):
         return False
 
     lowered = candidate.lower()
@@ -944,6 +984,41 @@ def _looks_like_part_number(token: str) -> bool:
     if candidate.isdigit() and len(candidate) >= 4:
         return True
     return False
+
+
+def _looks_like_dimension(token: str) -> bool:
+    candidate = token.strip()
+    if not candidate:
+        return False
+
+    normalised = candidate.lower()
+    replacements = {
+        "ø": "ø",
+        "⌀": "ø",
+        "φ": "phi",
+        "×": "x",
+        "*": "x",
+        "–": "-",
+        "—": "-",
+    }
+    for old, new in replacements.items():
+        normalised = normalised.replace(old, new)
+    normalised = normalised.replace(" ", "")
+    normalised = normalised.replace(":", "")
+    normalised = normalised.replace("=", "")
+    normalised = normalised.replace("(", "").replace(")", "")
+
+    compact = normalised.replace("/", "")
+
+    if COMPOSITE_DIMENSION_RE.match(normalised) or COMPOSITE_DIMENSION_RE.match(compact):
+        return True
+    if DIMENSION_TOKEN_RE.match(normalised):
+        return True
+    return False
+
+
+def _description_has_letters(text: str) -> bool:
+    return bool(re.search(r"[A-Za-zÄÖÜäöüß]", text))
 
 
 def _line_looks_like_item(text: str) -> bool:
