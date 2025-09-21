@@ -2,10 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
+from bom_extractor import extract_bom_from_pdf
+from .utils import build_pdf_drawing, build_pdf_table, build_pdf_text
+=======
 import pytest
 
 from bom_extractor import BOMExtractionError, extract_bom_from_pdf
 from .utils import build_pdf_table, build_pdf_text
+main
 
 
 def test_extract_basic_table(tmp_path: Path) -> None:
@@ -46,9 +51,46 @@ def test_extract_german_headers(tmp_path: Path) -> None:
     assert first.unit == "Stk"
 
 
+codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
+def test_extract_interprets_text_annotations(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "text.pdf"
+    build_pdf_text(
+        pdf_path,
+        [
+            "Pos 1 Schraube M8 Qty 4",
+            "Pos 2 Mutter M8 (2x)",
+            "3 Lager 6205 qty 2",
+        ],
+    )
+
+    result = extract_bom_from_pdf(str(pdf_path))
+
+    assert result.metadata["mode"] == "interpreted"
+    assert result.metadata["annotation_items"] == 3
+    assert len(result.items) >= 3
+    first = result.items[0]
+    assert first.position == "1"
+    assert first.quantity == 4
+    assert first.description and "Schraube" in first.description
+    assert "quantity" in result.detected_columns
+
+
+def test_extract_interprets_geometry(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "shapes.pdf"
+    build_pdf_drawing(pdf_path)
+
+    result = extract_bom_from_pdf(str(pdf_path))
+
+    assert result.metadata["mode"] == "interpreted"
+    assert result.metadata["geometry_items"] >= 1
+    assert result.metadata["annotation_items"] == 0
+    assert any("Rechteck" in (item.description or "") for item in result.items)
+    assert all(item.quantity and item.quantity >= 1 for item in result.items)
+=======
 def test_extract_raises_when_no_table(tmp_path: Path) -> None:
     pdf_path = tmp_path / "text.pdf"
     build_pdf_text(pdf_path, ["Dies ist nur eine Beschreibung ohne Tabelle."])
 
     with pytest.raises(BOMExtractionError):
         extract_bom_from_pdf(str(pdf_path))
+main

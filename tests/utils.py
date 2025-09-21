@@ -41,3 +41,33 @@ def build_pdf_text(path: Path, lines: Iterable[str]) -> Path:
     c.showPage()
     c.save()
     return path
+codex/erstelle-eine-app-zur-stucklistenerstellung-s7o00a
+
+
+def build_pdf_drawing(path: Path) -> Path:
+    """Create a minimalist drawing with geometric primitives for interpretation tests."""
+
+    from reportlab.pdfgen import canvas
+
+    c = canvas.Canvas(str(path), pagesize=A4)
+    rectangles = [
+        (40, A4[1] - 120, 80, 40),
+        (160, A4[1] - 120, 80, 40),
+        (40, A4[1] - 200, 80, 40),
+        (220, A4[1] - 220, 60, 60),
+    ]
+    for x, y, width, height in rectangles:
+        c.rect(x, y, width, height, stroke=1, fill=0)
+
+    circles = [
+        (360, A4[1] - 260, 25),
+        (420, A4[1] - 260, 25),
+    ]
+    for x, y, radius in circles:
+        c.circle(x, y, radius, stroke=1, fill=0)
+
+    c.showPage()
+    c.save()
+    return path
+=======
+main
