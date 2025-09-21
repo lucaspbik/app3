@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 
 from bom_extractor import BOMExtractionError, extract_bom_from_bytes
 from .schemas import BOMResponseModel
+from .ui import WEB_INTERFACE_HTML
 
 app = FastAPI(
     title="BOM Extractor",
@@ -25,8 +27,15 @@ app.add_middleware(
 )
 
 
-@app.get("/")
-def index() -> dict:
+@app.get("/", response_class=HTMLResponse)
+def render_interface() -> HTMLResponse:
+    """Serve the embedded single-page web interface."""
+
+    return HTMLResponse(content=WEB_INTERFACE_HTML)
+
+
+@app.get("/health")
+def healthcheck() -> dict:
     """Simple health endpoint that documents the service."""
 
     return {
