@@ -20,7 +20,7 @@ class BOMItemModel(BaseModel):
 class BOMResponseModel(BaseModel):
     items: List[BOMItemModel]
     detected_columns: List[str]
-    metadata: Dict[str, Union[int, List[int], str]]
+    metadata: Dict[str, Union[str, List[int], int]]
 
 
 __all__ = ["BOMItemModel", "BOMResponseModel"]
