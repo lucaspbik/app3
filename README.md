@@ -18,8 +18,6 @@ Extraktion als Webservice aufrufen lässt.
 
    ```bash
    python -m venv .venv
-   source .venv/bin/activate
-   ```
 
 2. Abhängigkeiten installieren:
 
